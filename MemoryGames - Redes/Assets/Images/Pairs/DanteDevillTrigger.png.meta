@@ -134,7 +134,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      DanteDevillTrigger_0: 4703834811220304150
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

@@ -13,6 +13,7 @@ public class CardController : MonoBehaviour
     private List<Sprite> spritePairs;
     Card firstCard;
     Card secondCard;
+    int matchCounter;
 
     private void Start()
     {
@@ -79,7 +80,14 @@ public class CardController : MonoBehaviour
         yield return new WaitForSeconds(0.3f);
         if (a.iconSprite == b.iconSprite)
         {
-            
+            matchCounter++;
+            if (matchCounter >= spritePairs.Count / 2)
+            {
+                PrimeTween.Sequence.Create()
+                    .Chain(PrimeTween.Tween.Scale(gridTransform, Vector3.one * 1.2f, 0.2f,
+                        ease: PrimeTween.Ease.OutBack))
+                    .Chain(PrimeTween.Tween.Scale(gridTransform, Vector3.one, 0.1f));
+            }
         }
         else
         {

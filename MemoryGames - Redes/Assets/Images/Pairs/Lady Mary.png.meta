@@ -134,7 +134,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Lady Mary_0: 6443185718749985566
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

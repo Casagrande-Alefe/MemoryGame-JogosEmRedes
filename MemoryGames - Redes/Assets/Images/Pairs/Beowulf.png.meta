@@ -134,7 +134,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Beowulf_0: 5383339369681082002
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

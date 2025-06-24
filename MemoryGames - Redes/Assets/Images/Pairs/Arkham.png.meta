@@ -134,7 +134,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Arkham_0: -6967885714721062984
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
