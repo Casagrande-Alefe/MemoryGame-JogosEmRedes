@@ -14,6 +14,12 @@ public class CardController : MonoBehaviour
     Card firstCard;
     Card secondCard;
     int matchCounter;
+    
+    int[] playerScores = new int[2]; // índice 0 = player 1, índice 1 = player 2
+    int currentPlayer = 0; // 0 é player 1, 1 é player 2
+
+    
+
 
     private void Start()
     {
@@ -55,6 +61,8 @@ public class CardController : MonoBehaviour
 
     public void SetSelected(Card card)
     {
+       
+
         if (card.isSelected == false)
         {
             card.Show();
@@ -77,22 +85,49 @@ public class CardController : MonoBehaviour
 
     IEnumerator CheckMatching(Card a, Card b)
     {
+        
         yield return new WaitForSeconds(0.3f);
-        if (a.iconSprite == b.iconSprite)
+        if (a.iconSprite == b.iconSprite) //quando um par é encontrado --> pontuação
         {
             matchCounter++;
+            
+            playerScores[currentPlayer]++;
+            Debug.Log($"Player {currentPlayer + 1} fez ponto! Agora tem {playerScores[currentPlayer]} pontos.");
+
+
             if (matchCounter >= spritePairs.Count / 2)
             {
                 PrimeTween.Sequence.Create()
                     .Chain(PrimeTween.Tween.Scale(gridTransform, Vector3.one * 1.2f, 0.2f,
                         ease: PrimeTween.Ease.OutBack))
                     .Chain(PrimeTween.Tween.Scale(gridTransform, Vector3.one, 0.1f));
+                
+                if (playerScores[0] > playerScores[1])
+                {
+                    Debug.Log("Player 1 venceu!");
+                }
+                else if (playerScores[1] > playerScores[0])
+                {
+                    Debug.Log("Player 2 venceu!");
+                }
+                else
+                {
+                    Debug.Log("Empate!");
+                }
+
             }
         }
         else
         {
+         
+
             a.Hide();
             b.Hide();
+            
+            
+            currentPlayer = (currentPlayer + 1) % 2; //passa a vez pro segundo jogador se errar o match
+
+            Debug.Log($"Errou! Agora é a vez do Player {currentPlayer + 1}");
         }
     }
     
