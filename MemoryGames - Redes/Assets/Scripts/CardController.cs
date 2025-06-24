@@ -4,12 +4,20 @@ using System.Linq;
 using NUnit.Framework;
 using Unity.VisualScripting;
 using UnityEngine;
+using TMPro;
 
 public class CardController : MonoBehaviour
 {
     [SerializeField] Card cardPrefab;
     [SerializeField] Transform gridTransform;
     [SerializeField] Sprite[] sprites;
+    [SerializeField] TMP_Text playerTurnText;
+    [SerializeField] TMP_Text victoryText;
+    [SerializeField] TMP_Text p1ScoreText;
+    [SerializeField] TMP_Text p2ScoreText;
+
+
+
     private List<Sprite> spritePairs;
     Card firstCard;
     Card secondCard;
@@ -25,6 +33,11 @@ public class CardController : MonoBehaviour
     {
         PrepareSprites();
         CreateCards();
+        playerTurnText.text = $"É a vez de: Player 1";
+        
+        p1ScoreText.text = "P1 Score: 0";
+        p2ScoreText.text = "P2 Score: 0";
+
     }
     private void PrepareSprites()
     {
@@ -92,6 +105,16 @@ public class CardController : MonoBehaviour
             matchCounter++;
             
             playerScores[currentPlayer]++;
+
+            if (currentPlayer == 0)
+            {
+                p1ScoreText.text = $"P1 Score: {playerScores[currentPlayer]++}";
+            }
+            else if (currentPlayer == 1)
+            {
+                p2ScoreText.text = $"P2 Score: {playerScores[currentPlayer]++}";
+            }
+            
             Debug.Log($"Player {currentPlayer + 1} fez ponto! Agora tem {playerScores[currentPlayer]} pontos.");
 
 
@@ -101,19 +124,24 @@ public class CardController : MonoBehaviour
                     .Chain(PrimeTween.Tween.Scale(gridTransform, Vector3.one * 1.2f, 0.2f,
                         ease: PrimeTween.Ease.OutBack))
                     .Chain(PrimeTween.Tween.Scale(gridTransform, Vector3.one, 0.1f));
+
+                string result;
                 
                 if (playerScores[0] > playerScores[1])
                 {
-                    Debug.Log("Player 1 venceu!");
+                    result = "Player 1 venceu!";
                 }
                 else if (playerScores[1] > playerScores[0])
                 {
-                    Debug.Log("Player 2 venceu!");
+                    result = "Player 2 venceu!";
                 }
                 else
                 {
-                    Debug.Log("Empate!");
+                    result = "Empate";
                 }
+                
+                victoryText.text = result;
+                victoryText.gameObject.SetActive(true);
 
             }
         }
@@ -128,6 +156,8 @@ public class CardController : MonoBehaviour
             currentPlayer = (currentPlayer + 1) % 2; //passa a vez pro segundo jogador se errar o match
 
             Debug.Log($"Errou! Agora é a vez do Player {currentPlayer + 1}");
+            playerTurnText.text = $"É a vez de: Player {currentPlayer + 1}";
+
         }
     }
     
