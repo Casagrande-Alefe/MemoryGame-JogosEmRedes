@@ -108,11 +108,11 @@ public class CardController : MonoBehaviour
 
             if (currentPlayer == 0)
             {
-                p1ScoreText.text = $"P1 Score: {playerScores[currentPlayer]++}";
+                p1ScoreText.text = $"P1 Score: {playerScores[currentPlayer]}";
             }
             else if (currentPlayer == 1)
             {
-                p2ScoreText.text = $"P2 Score: {playerScores[currentPlayer]++}";
+                p2ScoreText.text = $"P2 Score: {playerScores[currentPlayer]}";
             }
             
             Debug.Log($"Player {currentPlayer + 1} fez ponto! Agora tem {playerScores[currentPlayer]} pontos.");
