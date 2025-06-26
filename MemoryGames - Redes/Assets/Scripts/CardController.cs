@@ -18,6 +18,8 @@ public class CardController : MonoBehaviour
     [SerializeField] private Image player1Image;
     [SerializeField] private Image player2Image;
 
+    [SerializeField] private Button revengeButton;
+
     private List<Sprite> spritePairs;
     Card firstCard;
     Card secondCard;
@@ -37,6 +39,8 @@ public class CardController : MonoBehaviour
 
         MusicManager.Instance.PlayMusicForPlayer(currentPlayer);
         AtualizarImagemDoTurno();
+
+        revengeButton.gameObject.SetActive(false); // botão invisível no começo
     }
 
     private void PrepareSprites()
@@ -137,6 +141,7 @@ public class CardController : MonoBehaviour
 
                 victoryText.text = result;
                 victoryText.gameObject.SetActive(true);
+                revengeButton.gameObject.SetActive(true); // ativa botão no fim do jogo
             }
         }
         else // erro → troca turno
@@ -166,5 +171,33 @@ public class CardController : MonoBehaviour
             player1Image.color = Color.gray;
             player2Image.color = Color.white;
         }
+    }
+
+    // Método para reiniciar o jogo ao clicar no botão Revanche
+    public void RestartGame()
+    {
+        victoryText.gameObject.SetActive(false);
+        revengeButton.gameObject.SetActive(false);
+
+        matchCounter = 0;
+        playerScores[0] = 0;
+        playerScores[1] = 0;
+        currentPlayer = 0;
+
+        p1ScoreText.text = "P1 score: 0";
+        p2ScoreText.text = "P2 score: 0";
+        playerTurnText.text = "vez de: player 1";
+
+        // Destroi todas as cartas atuais
+        foreach (Transform child in gridTransform)
+        {
+            Destroy(child.gameObject);
+        }
+
+        PrepareSprites();
+        CreateCards();
+
+        MusicManager.Instance.PlayMusicForPlayer(currentPlayer);
+        AtualizarImagemDoTurno();
     }
 }
