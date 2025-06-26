@@ -122,7 +122,8 @@ public class CardController : MonoBehaviour
             {
                 PrimeTween.Sequence.Create()
                     .Chain(PrimeTween.Tween.Scale(gridTransform, Vector3.one * 1.2f, 0.2f, ease: PrimeTween.Ease.OutBack))
-                    .Chain(PrimeTween.Tween.Scale(gridTransform, 0.5834866f, 0.1f));
+                    .Chain(PrimeTween.Tween.Scale(gridTransform, 0.5834866f, 0.1f)); /*Se o tamanho do Grid Container
+                for alterado, precisa mudar o valor de endValue (5834866f) pro novo tamanho padrão do Container*/
 
                 string result;
 
