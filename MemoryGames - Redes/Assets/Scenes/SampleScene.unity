@@ -473,15 +473,6 @@ MonoBehaviour:
   - {fileID: -8086242102768458684, guid: 945627d9c1d683c4193bcbaada2188c2, type: 3}
   - {fileID: -6967885714721062984, guid: 18fe5e6b2314ce548981de3336d17e31, type: 3}
   - {fileID: 5383339369681082002, guid: 24c7eae672304fb46979502aa988dedf, type: 3}
-  - {fileID: 5007182176019046389, guid: 951684ce2e1fdf14d8c7fd5a20f74124, type: 3}
-  - {fileID: -7960608948029356370, guid: 079b420aa63e9cf46aa9ea2b8490d120, type: 3}
-  - {fileID: 4703834811220304150, guid: ec37c9ccbc77ff449a010fe7f3fc16f9, type: 3}
-  - {fileID: -7083545565698355939, guid: 8edfcd180f7013c429e950bea837cb33, type: 3}
-  - {fileID: 6443185718749985566, guid: ffe2e79919d4283429c3555056c303a8, type: 3}
-  - {fileID: -2066466626127912654, guid: 24971a7255f69e548b3dfb611b348156, type: 3}
-  - {fileID: 3389716436010329701, guid: 2a7be79ce0c65ff44a1ecb022ef6af50, type: 3}
-  - {fileID: -3169812704456400872, guid: 685fb6af16c069346b688b8e91fd0bdd, type: 3}
-  - {fileID: -6253242203800921580, guid: 14d96af1072eee44db78979e17db1cce, type: 3}
   playerTurnText: {fileID: 323074749}
   victoryText: {fileID: 1313314014}
   p1ScoreText: {fileID: 1590822939}
