@@ -1,10 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using NUnit.Framework;
-using Unity.VisualScripting;
 using UnityEngine;
 using TMPro;
+using UnityEngine.UI;
 
 public class CardController : MonoBehaviour
 {
@@ -16,41 +15,42 @@ public class CardController : MonoBehaviour
     [SerializeField] TMP_Text p1ScoreText;
     [SerializeField] TMP_Text p2ScoreText;
 
-
+    [SerializeField] private Image player1Image;
+    [SerializeField] private Image player2Image;
 
     private List<Sprite> spritePairs;
     Card firstCard;
     Card secondCard;
     int matchCounter;
-    
+
     int[] playerScores = new int[2]; // índice 0 = player 1, índice 1 = player 2
     int currentPlayer = 0; // 0 é player 1, 1 é player 2
-
-    
-
 
     private void Start()
     {
         PrepareSprites();
         CreateCards();
-        playerTurnText.text = $"É a vez de: Player 1";
-        
-        p1ScoreText.text = "P1 Score: 0";
-        p2ScoreText.text = "P2 Score: 0";
+        playerTurnText.text = $"vez de: player 1";
 
+        p1ScoreText.text = "P1 score: 0";
+        p2ScoreText.text = "P2 score: 0";
+
+        MusicManager.Instance.PlayMusicForPlayer(currentPlayer);
+        AtualizarImagemDoTurno();
     }
+
     private void PrepareSprites()
     {
         spritePairs = new List<Sprite>();
         for (int i = 0; i < sprites.Length; i++)
         {
-          spritePairs.Add(sprites[i]);  
-          spritePairs.Add(sprites[i]); 
+            spritePairs.Add(sprites[i]);
+            spritePairs.Add(sprites[i]);
         }
-        
+
         ShuffleSprites(spritePairs);
     }
-    
+
     private void ShuffleSprites(List<Sprite> spritelist)
     {
         for (int i = spritelist.Count - 1; i > 0; i--)
@@ -61,7 +61,7 @@ public class CardController : MonoBehaviour
             spritelist[j] = temp;
         }
     }
-    
+
     void CreateCards()
     {
         for (int i = 0; i < spritePairs.Count(); i++)
@@ -74,9 +74,7 @@ public class CardController : MonoBehaviour
 
     public void SetSelected(Card card)
     {
-       
-
-        if (card.isSelected == false)
+        if (!card.isSelected)
         {
             card.Show();
 
@@ -90,7 +88,7 @@ public class CardController : MonoBehaviour
             {
                 secondCard = card;
                 StartCoroutine(CheckMatching(firstCard, secondCard));
-                firstCard =  null;
+                firstCard = null;
                 secondCard = null;
             }
         }
@@ -98,67 +96,75 @@ public class CardController : MonoBehaviour
 
     IEnumerator CheckMatching(Card a, Card b)
     {
-        
         yield return new WaitForSeconds(0.3f);
-        if (a.iconSprite == b.iconSprite) //quando um par é encontrado --> pontuação
+
+        if (a.iconSprite == b.iconSprite) // acerto
         {
             matchCounter++;
-            
             playerScores[currentPlayer]++;
 
             if (currentPlayer == 0)
             {
                 p1ScoreText.text = $"P1 Score: {playerScores[currentPlayer]}";
             }
-            else if (currentPlayer == 1)
+            else
             {
                 p2ScoreText.text = $"P2 Score: {playerScores[currentPlayer]}";
             }
-            
-            Debug.Log($"Player {currentPlayer + 1} fez ponto! Agora tem {playerScores[currentPlayer]} pontos.");
 
+            Debug.Log($"player {currentPlayer + 1} fez ponto! Agora tem {playerScores[currentPlayer]} pontos.");
 
             if (matchCounter >= spritePairs.Count / 2)
             {
                 PrimeTween.Sequence.Create()
-                    .Chain(PrimeTween.Tween.Scale(gridTransform, Vector3.one * 1.2f, 0.2f,
-                        ease: PrimeTween.Ease.OutBack))
+                    .Chain(PrimeTween.Tween.Scale(gridTransform, Vector3.one * 1.2f, 0.2f, ease: PrimeTween.Ease.OutBack))
                     .Chain(PrimeTween.Tween.Scale(gridTransform, Vector3.one, 0.1f));
 
                 string result;
-                
+
                 if (playerScores[0] > playerScores[1])
                 {
-                    result = "Player 1 venceu!";
+                    result = "player 1 venceu!";
                 }
                 else if (playerScores[1] > playerScores[0])
                 {
-                    result = "Player 2 venceu!";
+                    result = "player 2 venceu!";
                 }
                 else
                 {
-                    result = "Empate";
+                    result = "empate";
                 }
-                
+
                 victoryText.text = result;
                 victoryText.gameObject.SetActive(true);
-
             }
+        }
+        else // erro → troca turno
+        {
+            a.Hide();
+            b.Hide();
+
+            currentPlayer = (currentPlayer + 1) % 2;
+
+            Debug.Log($"errou! agora é a vez do player {currentPlayer + 1}");
+            playerTurnText.text = $"vez de: player {currentPlayer + 1}";
+
+            MusicManager.Instance.PlayMusicForPlayer(currentPlayer);
+            AtualizarImagemDoTurno();
+        }
+    }
+
+    private void AtualizarImagemDoTurno()
+    {
+        if (currentPlayer == 0)
+        {
+            player1Image.color = Color.white; // Aceso
+            player2Image.color = Color.gray;  // Apagado
         }
         else
         {
-         
-
-            a.Hide();
-            b.Hide();
-            
-            
-            currentPlayer = (currentPlayer + 1) % 2; //passa a vez pro segundo jogador se errar o match
-
-            Debug.Log($"Errou! Agora é a vez do Player {currentPlayer + 1}");
-            playerTurnText.text = $"É a vez de: Player {currentPlayer + 1}";
-
+            player1Image.color = Color.gray;
+            player2Image.color = Color.white;
         }
     }
-    
 }
