@@ -1,8 +1,10 @@
-using System.Collections;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using UnityEngine;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading;
 using TMPro;
+using UnityEngine;
 using UnityEngine.UI;
 
 public class CardController : MonoBehaviour
@@ -20,185 +22,279 @@ public class CardController : MonoBehaviour
 
     [SerializeField] private Button revengeButton;
 
-    private List<Sprite> spritePairs;
-    Card firstCard;
-    Card secondCard;
-    int matchCounter;
+    // Networking
+    private TcpClient client;
+    private NetworkStream stream;
+    private Thread receiveThread;
 
-    int[] playerScores = new int[2]; // índice 0 = player 1, índice 1 = player 2
-    int currentPlayer = 0; // 0 é player 1, 1 é player 2
+    private int meuId = -1;
+    private int currentPlayer = 0;
 
-    private void Start()
+    private List<Card> cartas = new List<Card>();
+
+    private int[] cardStates; // 0 = escondida, 1 = virada, 2 = achada
+    private int[] playerScores = new int[2];
+
+    private Card firstCard;
+    private Card secondCard;
+
+    void Start()
     {
-        PrepareSprites();
-        CreateCards();
-        playerTurnText.text = $"vez de: player 1";
+        victoryText.gameObject.SetActive(false);
+        revengeButton.gameObject.SetActive(false);
 
         p1ScoreText.text = "P1 score: 0";
         p2ScoreText.text = "P2 score: 0";
+        playerTurnText.text = "Aguardando conexão...";
 
-        MusicManager.Instance.PlayMusicForPlayer(currentPlayer);
-        AtualizarImagemDoTurno();
+        revengeButton.onClick.AddListener(RestartGame);
 
-        revengeButton.gameObject.SetActive(false); // botão invisível no começo
+        ConnectToServer();
     }
 
-    private void PrepareSprites()
+    void ConnectToServer()
     {
-        spritePairs = new List<Sprite>();
-        for (int i = 0; i < sprites.Length; i++)
+        try
         {
-            spritePairs.Add(sprites[i]);
-            spritePairs.Add(sprites[i]);
+            client = new TcpClient("127.0.0.1", 8080);
+            stream = client.GetStream();
+
+            receiveThread = new Thread(ReceiveData);
+            receiveThread.IsBackground = true;
+            receiveThread.Start();
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("Erro ao conectar: " + e.Message);
+        }
+    }
+
+    void ReceiveData()
+    {
+        byte[] buffer = new byte[1024];
+        while (true)
+        {
+            try
+            {
+                int len = stream.Read(buffer, 0, buffer.Length);
+                if (len == 0) break;
+
+                string msg = Encoding.UTF8.GetString(buffer, 0, len);
+                Debug.Log("[Cliente] Mensagem recebida: " + msg);
+
+                ProcessServerMessage(msg);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("Erro ao receber dados: " + e.Message);
+                break;
+            }
+        }
+    }
+
+    void ProcessServerMessage(string msg)
+    {
+        if (msg.StartsWith("id:"))
+        {
+            meuId = int.Parse(msg.Substring(3));
+            Debug.Log("Meu ID: " + meuId);
+        }
+        else if (msg.StartsWith("vez:"))
+        {
+            currentPlayer = int.Parse(msg.Substring(4));
+            UpdateTurnUI();
+        }
+        else if (msg.StartsWith("estado:"))
+        {
+            // Formato esperado: estado:currentPlayer;score1,score2;cardStatesSeparatedByComma
+            string[] parts = msg.Substring(7).Split(';');
+            if (parts.Length < 3) return;
+
+            currentPlayer = int.Parse(parts[0]);
+
+            string[] scores = parts[1].Split(',');
+            playerScores[0] = int.Parse(scores[0]);
+            playerScores[1] = int.Parse(scores[1]);
+
+            string[] cardStatesStr = parts[2].Split(',');
+
+            // Atualizar cartas e UI na main thread
+            UnityMainThreadDispatcher.Instance().Enqueue(() =>
+            {
+                UpdateGameState(cardStatesStr);
+                UpdateScoresUI();
+                UpdateTurnUI();
+            });
+        }
+        else if (msg.StartsWith("fim:"))
+        {
+            string[] pontos = msg.Substring(4).Split(',');
+            int p1 = int.Parse(pontos[0]);
+            int p2 = int.Parse(pontos[1]);
+
+            string result;
+            if (p1 > p2) result = "Player 1 venceu!";
+            else if (p2 > p1) result = "Player 2 venceu!";
+            else result = "Empate!";
+
+            UnityMainThreadDispatcher.Instance().Enqueue(() =>
+            {
+                victoryText.text = result;
+                victoryText.gameObject.SetActive(true);
+                revengeButton.gameObject.SetActive(true);
+            });
+        }
+    }
+
+    void UpdateGameState(string[] cardStatesStr)
+    {
+        // Se as cartas não foram criadas ainda, cria
+        if (cartas.Count == 0)
+        {
+            CreateCards();
         }
 
-        ShuffleSprites(spritePairs);
-    }
+        cardStates = new int[cardStatesStr.Length];
 
-    private void ShuffleSprites(List<Sprite> spritelist)
-    {
-        for (int i = spritelist.Count - 1; i > 0; i--)
+        for (int i = 0; i < cardStatesStr.Length; i++)
         {
-            int j = Random.Range(0, i + 1);
-            Sprite temp = spritelist[i];
-            spritelist[i] = spritelist[j];
-            spritelist[j] = temp;
+            cardStates[i] = int.Parse(cardStatesStr[i]);
+        }
+
+        for (int i = 0; i < cartas.Count; i++)
+        {
+            if (cardStates[i] == 0)
+            {
+                cartas[i].Hide();
+                cartas[i].SetAchado(false);
+            }
+            else if (cardStates[i] == 1)
+            {
+                cartas[i].Show();
+                cartas[i].SetAchado(false);
+            }
+            else if (cardStates[i] == 2)
+            {
+                cartas[i].Show();
+                cartas[i].SetAchado(true);
+            }
         }
     }
 
     void CreateCards()
     {
-        for (int i = 0; i < spritePairs.Count(); i++)
+        for (int i = 0; i < sprites.Length * 2; i++)
         {
             Card card = Instantiate(cardPrefab, gridTransform);
-            card.SetIconSprite(spritePairs[i]);
+            card.SetIconSprite(sprites[i % sprites.Length]);
+            card.cardId = i;
+            card.index = i;
             card.controller = this;
+            cartas.Add(card);
+            card.Hide();
         }
     }
 
     public void SetSelected(Card card)
     {
-        if (!card.isSelected)
+        if (meuId != currentPlayer)
         {
+            Debug.Log("Não é sua vez!");
+            return;
+        }
+
+        if (cardStates[card.index] != 0)
+        {
+            // Já virada ou achada
+            return;
+        }
+
+        if (firstCard == null)
+        {
+            firstCard = card;
+            card.Show();
+        }
+        else if (secondCard == null && card != firstCard)
+        {
+            secondCard = card;
             card.Show();
 
-            if (firstCard == null)
-            {
-                firstCard = card;
-                return;
-            }
+            // Envia jogada para o servidor com as duas cartas escolhidas
+            SendMessageToServer($"jogada:{firstCard.index},{secondCard.index}");
 
-            if (secondCard == null)
-            {
-                secondCard = card;
-                StartCoroutine(CheckMatching(firstCard, secondCard));
-                firstCard = null;
-                secondCard = null;
-            }
+            firstCard = null;
+            secondCard = null;
         }
     }
 
-    IEnumerator CheckMatching(Card a, Card b)
+    void SendMessageToServer(string message)
     {
-        yield return new WaitForSeconds(0.3f);
+        if (stream == null) return;
 
-        if (a.iconSprite == b.iconSprite) // acerto
+        byte[] data = Encoding.UTF8.GetBytes(message);
+        try
         {
-            matchCounter++;
-            playerScores[currentPlayer]++;
-
-            if (currentPlayer == 0)
-            {
-                p1ScoreText.text = $"P1 Score: {playerScores[currentPlayer]}";
-            }
-            else
-            {
-                p2ScoreText.text = $"P2 Score: {playerScores[currentPlayer]}";
-            }
-
-            Debug.Log($"player {currentPlayer + 1} fez ponto! Agora tem {playerScores[currentPlayer]} pontos.");
-
-            if (matchCounter >= spritePairs.Count / 2)
-            {
-                PrimeTween.Sequence.Create()
-                    .Chain(PrimeTween.Tween.Scale(gridTransform, Vector3.one * 1.2f, 0.2f, ease: PrimeTween.Ease.OutBack))
-                    .Chain(PrimeTween.Tween.Scale(gridTransform, 0.5834866f, 0.1f)); /*Se o tamanho do Grid Container
-                for alterado, precisa mudar o valor de endValue (5834866f) pro novo tamanho padrão do Container*/
-
-                string result;
-
-                if (playerScores[0] > playerScores[1])
-                {
-                    result = "player 1 venceu!";
-                }
-                else if (playerScores[1] > playerScores[0])
-                {
-                    result = "player 2 venceu!";
-                }
-                else
-                {
-                    result = "empate";
-                }
-
-                victoryText.text = result;
-                victoryText.gameObject.SetActive(true);
-                revengeButton.gameObject.SetActive(true); // ativa botão no fim do jogo
-            }
+            stream.Write(data, 0, data.Length);
         }
-        else // erro → troca turno
+        catch (Exception e)
         {
-            a.Hide();
-            b.Hide();
-
-            currentPlayer = (currentPlayer + 1) % 2;
-
-            Debug.Log($"errou! agora é a vez do player {currentPlayer + 1}");
-            playerTurnText.text = $"vez de: player {currentPlayer + 1}";
-
-            MusicManager.Instance.PlayMusicForPlayer(currentPlayer);
-            AtualizarImagemDoTurno();
+            Debug.LogError("Erro ao enviar mensagem: " + e.Message);
         }
     }
 
-    private void AtualizarImagemDoTurno()
+    void UpdateScoresUI()
     {
+        p1ScoreText.text = $"P1 Score: {playerScores[0]}";
+        p2ScoreText.text = $"P2 Score: {playerScores[1]}";
+    }
+
+    void UpdateTurnUI()
+    {
+        playerTurnText.text = $"Vez de: player {currentPlayer + 1}";
+
         if (currentPlayer == 0)
         {
-            player1Image.color = Color.white; // Aceso
-            player2Image.color = Color.gray;  // Apagado
+            player1Image.color = Color.white;
+            player2Image.color = Color.gray;
         }
         else
         {
             player1Image.color = Color.gray;
             player2Image.color = Color.white;
         }
-    }
-
-    // Método para reiniciar o jogo ao clicar no botão Revanche
-    public void RestartGame()
-    {
-        victoryText.gameObject.SetActive(false);
-        revengeButton.gameObject.SetActive(false);
-
-        matchCounter = 0;
-        playerScores[0] = 0;
-        playerScores[1] = 0;
-        currentPlayer = 0;
-
-        p1ScoreText.text = "P1 score: 0";
-        p2ScoreText.text = "P2 score: 0";
-        playerTurnText.text = "vez de: player 1";
-
-        // Destroi todas as cartas atuais
-        foreach (Transform child in gridTransform)
-        {
-            Destroy(child.gameObject);
-        }
-
-        PrepareSprites();
-        CreateCards();
 
         MusicManager.Instance.PlayMusicForPlayer(currentPlayer);
-        AtualizarImagemDoTurno();
+    }
+
+    public void RestartGame()
+    {
+        UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+    }
+
+    private void OnApplicationQuit()
+    {
+        if (stream != null) stream.Close();
+        if (client != null) client.Close();
+        if (receiveThread != null && receiveThread.IsAlive) receiveThread.Abort();
+    }
+    public void ReceiveJogada(int cardId, int playerId)
+    {
+        Debug.Log($"Recebido jogada: jogador {playerId} virou carta {cardId}");
+
+        // Procure a carta pelo ID para mostrar ou atualizar
+        foreach (Card c in cartas)
+        {
+            if (c.cardId == cardId)
+            {
+                if (!c.isSelected && !c.isAchado)
+                {
+                    c.Show();
+                }
+                break;
+            }
+        }
+
+        currentPlayer = playerId;
+        UpdateTurnUI();
     }
 }

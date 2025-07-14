@@ -134,7 +134,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Dantedmc3_0: 3995438582132793106
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
