@@ -16,52 +16,75 @@ public class CardController : MonoBehaviour
     [SerializeField] TMP_Text victoryText;
     [SerializeField] TMP_Text p1ScoreText;
     [SerializeField] TMP_Text p2ScoreText;
-
     [SerializeField] private Image player1Image;
     [SerializeField] private Image player2Image;
-
     [SerializeField] private Button revengeButton;
 
-    // Networking
     private TcpClient client;
     private NetworkStream stream;
     private Thread receiveThread;
 
-    private int meuId = -1;
-    private int currentPlayer = 0;
+    private int meuId = -1;              // ID do jogador (0 ou 1)
+    private int currentPlayer = 0;       // Quem está jogando agora (0 ou 1)
 
     private List<Card> cartas = new List<Card>();
 
-    private int[] cardStates; // 0 = escondida, 1 = virada, 2 = achada
+    // Estados das cartas: 0=escondida, 1=virada, 2=achada
+    private int[] cardStates;
     private int[] playerScores = new int[2];
 
-    private Card firstCard;
-    private Card secondCard;
+    private Card firstCard = null;
+    private Card secondCard = null;
 
     void Start()
     {
         victoryText.gameObject.SetActive(false);
         revengeButton.gameObject.SetActive(false);
 
-        p1ScoreText.text = "P1 score: 0";
-        p2ScoreText.text = "P2 score: 0";
+        p1ScoreText.text = "P1 Score: 0";
+        p2ScoreText.text = "P2 Score: 0";
         playerTurnText.text = "Aguardando conexão...";
 
         revengeButton.onClick.AddListener(RestartGame);
 
+        CreateCards();
+
         ConnectToServer();
+    }
+
+    void CreateCards()
+    {
+        cartas.Clear();
+        gridTransform.DetachChildren(); // Limpa grid caso reinicie
+
+        for (int i = 0; i < sprites.Length * 2; i++)
+        {
+            Card card = Instantiate(cardPrefab, gridTransform);
+            card.SetIconSprite(sprites[i % sprites.Length]);
+            card.cardId = i;
+            card.index = i;
+            card.controller = this;
+            card.Hide();
+            cartas.Add(card);
+        }
+
+        cardStates = new int[cartas.Count];
+        for (int i = 0; i < cardStates.Length; i++)
+            cardStates[i] = 0;
     }
 
     void ConnectToServer()
     {
         try
         {
-            client = new TcpClient("127.0.0.1", 8080);
+            client = new TcpClient("127.0.0.1", 8080); // Troque para IP do servidor real
             stream = client.GetStream();
 
             receiveThread = new Thread(ReceiveData);
             receiveThread.IsBackground = true;
             receiveThread.Start();
+
+            Debug.Log("Conectado ao servidor");
         }
         catch (Exception e)
         {
@@ -72,6 +95,7 @@ public class CardController : MonoBehaviour
     void ReceiveData()
     {
         byte[] buffer = new byte[1024];
+
         while (true)
         {
             try
@@ -82,7 +106,7 @@ public class CardController : MonoBehaviour
                 string msg = Encoding.UTF8.GetString(buffer, 0, len);
                 Debug.Log("[Cliente] Mensagem recebida: " + msg);
 
-                ProcessServerMessage(msg);
+                UnityMainThreadDispatcher.Instance().Enqueue(() => ProcessServerMessage(msg));
             }
             catch (Exception e)
             {
@@ -98,6 +122,7 @@ public class CardController : MonoBehaviour
         {
             meuId = int.Parse(msg.Substring(3));
             Debug.Log("Meu ID: " + meuId);
+            playerTurnText.text = "Esperando partida iniciar...";
         }
         else if (msg.StartsWith("vez:"))
         {
@@ -106,25 +131,20 @@ public class CardController : MonoBehaviour
         }
         else if (msg.StartsWith("estado:"))
         {
-            // Formato esperado: estado:currentPlayer;score1,score2;cardStatesSeparatedByComma
+            // Formato: estado:currentPlayer;score1,score2;cardState0,cardState1,...
             string[] parts = msg.Substring(7).Split(';');
             if (parts.Length < 3) return;
 
             currentPlayer = int.Parse(parts[0]);
-
             string[] scores = parts[1].Split(',');
             playerScores[0] = int.Parse(scores[0]);
             playerScores[1] = int.Parse(scores[1]);
 
             string[] cardStatesStr = parts[2].Split(',');
 
-            // Atualizar cartas e UI na main thread
-            UnityMainThreadDispatcher.Instance().Enqueue(() =>
-            {
-                UpdateGameState(cardStatesStr);
-                UpdateScoresUI();
-                UpdateTurnUI();
-            });
+            UpdateGameState(cardStatesStr);
+            UpdateScoresUI();
+            UpdateTurnUI();
         }
         else if (msg.StartsWith("fim:"))
         {
@@ -132,34 +152,33 @@ public class CardController : MonoBehaviour
             int p1 = int.Parse(pontos[0]);
             int p2 = int.Parse(pontos[1]);
 
-            string result;
-            if (p1 > p2) result = "Player 1 venceu!";
-            else if (p2 > p1) result = "Player 2 venceu!";
-            else result = "Empate!";
+            string resultado = p1 > p2 ? "Player 1 venceu!" :
+                               p2 > p1 ? "Player 2 venceu!" :
+                               "Empate!";
 
-            UnityMainThreadDispatcher.Instance().Enqueue(() =>
-            {
-                victoryText.text = result;
-                victoryText.gameObject.SetActive(true);
-                revengeButton.gameObject.SetActive(true);
-            });
+            victoryText.text = resultado;
+            victoryText.gameObject.SetActive(true);
+            revengeButton.gameObject.SetActive(true);
+        }
+        else if (msg.StartsWith("jogada:"))
+        {
+            // Jogada recebida: jogada:firstIndex,secondIndex
+            string[] parts = msg.Substring(7).Split(',');
+            if (parts.Length != 2) return;
+
+            int firstIndex = int.Parse(parts[0]);
+            int secondIndex = int.Parse(parts[1]);
+
+            ApplyOpponentMove(firstIndex, secondIndex);
         }
     }
 
     void UpdateGameState(string[] cardStatesStr)
     {
-        // Se as cartas não foram criadas ainda, cria
-        if (cartas.Count == 0)
-        {
-            CreateCards();
-        }
-
-        cardStates = new int[cardStatesStr.Length];
+        if (cartas.Count == 0) CreateCards();
 
         for (int i = 0; i < cardStatesStr.Length; i++)
-        {
             cardStates[i] = int.Parse(cardStatesStr[i]);
-        }
 
         for (int i = 0; i < cartas.Count; i++)
         {
@@ -181,18 +200,18 @@ public class CardController : MonoBehaviour
         }
     }
 
-    void CreateCards()
+    void ApplyOpponentMove(int firstIndex, int secondIndex)
     {
-        for (int i = 0; i < sprites.Length * 2; i++)
-        {
-            Card card = Instantiate(cardPrefab, gridTransform);
-            card.SetIconSprite(sprites[i % sprites.Length]);
-            card.cardId = i;
-            card.index = i;
-            card.controller = this;
-            cartas.Add(card);
-            card.Hide();
-        }
+        Debug.Log($"Jogada do adversário: {firstIndex} e {secondIndex}");
+
+        cartas[firstIndex].Show();
+        cartas[secondIndex].Show();
+
+        // Aqui você pode implementar lógica para bloquear o input local se quiser
+
+        // Atualize o turno para seu ID
+        currentPlayer = meuId;
+        UpdateTurnUI();
     }
 
     public void SetSelected(Card card)
@@ -205,23 +224,24 @@ public class CardController : MonoBehaviour
 
         if (cardStates[card.index] != 0)
         {
-            // Já virada ou achada
+            // Carta já virada ou achada
             return;
         }
 
         if (firstCard == null)
         {
             firstCard = card;
-            card.Show();
+            firstCard.Show();
         }
         else if (secondCard == null && card != firstCard)
         {
             secondCard = card;
-            card.Show();
+            secondCard.Show();
 
-            // Envia jogada para o servidor com as duas cartas escolhidas
+            // Envia jogada para o servidor (com os índices das cartas)
             SendMessageToServer($"jogada:{firstCard.index},{secondCard.index}");
 
+            // Limpa para próxima jogada
             firstCard = null;
             secondCard = null;
         }
@@ -250,20 +270,13 @@ public class CardController : MonoBehaviour
 
     void UpdateTurnUI()
     {
-        playerTurnText.text = $"Vez de: player {currentPlayer + 1}";
+        playerTurnText.text = $"Vez de: jogador {currentPlayer + 1}";
 
-        if (currentPlayer == 0)
-        {
-            player1Image.color = Color.white;
-            player2Image.color = Color.gray;
-        }
-        else
-        {
-            player1Image.color = Color.gray;
-            player2Image.color = Color.white;
-        }
+        player1Image.color = (currentPlayer == 0) ? Color.white : Color.gray;
+        player2Image.color = (currentPlayer == 1) ? Color.white : Color.gray;
 
-        MusicManager.Instance.PlayMusicForPlayer(currentPlayer);
+        // Opcional: tocar música ou efeito para o jogador ativo
+        // MusicManager.Instance.PlayMusicForPlayer(currentPlayer);
     }
 
     public void RestartGame()
@@ -281,7 +294,6 @@ public class CardController : MonoBehaviour
     {
         Debug.Log($"Recebido jogada: jogador {playerId} virou carta {cardId}");
 
-        // Procure a carta pelo ID para mostrar ou atualizar
         foreach (Card c in cartas)
         {
             if (c.cardId == cardId)

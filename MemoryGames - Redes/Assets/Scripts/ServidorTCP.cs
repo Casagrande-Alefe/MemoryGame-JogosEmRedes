@@ -36,6 +36,13 @@ public class ServidorTCP : MonoBehaviour
             Thread clientThread = new Thread(() => HandleClient(client));
             clientThread.IsBackground = true;
             clientThread.Start();
+
+            // ✅ Inicia o jogo quando 2 jogadores estiverem conectados
+            if (clients.Count == 2)
+            {
+                Debug.Log("2 jogadores conectados. Iniciando o jogo...");
+                BroadcastMessage("INICIAR_JOGO", null); // envia para todos
+            }
         }
     }
 
@@ -78,7 +85,8 @@ public class ServidorTCP : MonoBehaviour
         {
             foreach (var c in clients)
             {
-                if (c != sender && c.Connected)
+                // Se for null (como no INICIAR_JOGO), manda para todos
+                if ((sender == null || c != sender) && c.Connected)
                 {
                     try
                     {
@@ -97,3 +105,4 @@ public class ServidorTCP : MonoBehaviour
         serverThread?.Abort();
     }
 }
+
