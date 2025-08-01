@@ -67,7 +67,7 @@ public class ClienteTCP : MonoBehaviour
     {
         if (client == null || !client.Connected) return;
 
-        string message = $"JOGADA|{cardId}|{playerId}";
+        string message = $"jogada:{cardId},{playerId}";
         byte[] data = Encoding.UTF8.GetBytes(message);
 
         try
@@ -109,17 +109,8 @@ public class ClienteTCP : MonoBehaviour
     // Interpreta e trata as mensagens recebidas do servidor
     void ProcessMessage(string message)
     {
-        if (!message.StartsWith("JOGADA|")) return;
-
-        string[] parts = message.Split('|');
-        if (parts.Length != 3) return;
-
-        int cardId;
-        int playerId;
-        if (int.TryParse(parts[1], out cardId) && int.TryParse(parts[2], out playerId))
-        {
-            cardController.ReceiveJogada(cardId, playerId);
-        }
+        // Passa a mensagem para o CardController tratar tudo
+        cardController.ProcessServerMessage(message);
     }
 
     private void OnApplicationQuit()
@@ -130,5 +121,3 @@ public class ClienteTCP : MonoBehaviour
         client?.Close();
     }
 }
-
-

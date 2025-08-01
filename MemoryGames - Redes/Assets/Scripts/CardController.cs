@@ -24,7 +24,7 @@ public class CardController : MonoBehaviour
     private NetworkStream stream;
     private Thread receiveThread;
 
-    private int meuId = -1;              // ID do jogador (0 ou 1)
+    private int meuId = -1;              // ID do jogador (0 ou 1), começa -1 esperando o servidor setar
     private int currentPlayer = 0;       // Quem está jogando agora (0 ou 1)
 
     private List<Card> cartas = new List<Card>();
@@ -35,6 +35,8 @@ public class CardController : MonoBehaviour
 
     private Card firstCard = null;
     private Card secondCard = null;
+
+    private bool esperandoJogada = false; // bloqueia input até receber resposta do servidor
 
     void Start()
     {
@@ -50,6 +52,10 @@ public class CardController : MonoBehaviour
         CreateCards();
 
         ConnectToServer();
+
+        // Se quiser testar manualmente, descomenta aqui e seta o id manualmente
+        // meuId = 0; // No seu PC
+        // meuId = 1; // No PC do seu amigo
     }
 
     void CreateCards()
@@ -116,7 +122,7 @@ public class CardController : MonoBehaviour
         }
     }
 
-    void ProcessServerMessage(string msg)
+    public void ProcessServerMessage(string msg)
     {
         if (msg.StartsWith("id:"))
         {
@@ -128,6 +134,7 @@ public class CardController : MonoBehaviour
         {
             currentPlayer = int.Parse(msg.Substring(4));
             UpdateTurnUI();
+            esperandoJogada = false; // libera input quando vez mudar
         }
         else if (msg.StartsWith("estado:"))
         {
@@ -145,6 +152,8 @@ public class CardController : MonoBehaviour
             UpdateGameState(cardStatesStr);
             UpdateScoresUI();
             UpdateTurnUI();
+
+            esperandoJogada = false; // libera input após atualização completa
         }
         else if (msg.StartsWith("fim:"))
         {
@@ -159,6 +168,8 @@ public class CardController : MonoBehaviour
             victoryText.text = resultado;
             victoryText.gameObject.SetActive(true);
             revengeButton.gameObject.SetActive(true);
+
+            esperandoJogada = true; // bloqueia tudo quando o jogo acaba
         }
         else if (msg.StartsWith("jogada:"))
         {
@@ -207,18 +218,28 @@ public class CardController : MonoBehaviour
         cartas[firstIndex].Show();
         cartas[secondIndex].Show();
 
-        // Aqui você pode implementar lógica para bloquear o input local se quiser
+        esperandoJogada = false; // libera input depois da jogada do adversário
 
-        // Atualize o turno para seu ID
-        currentPlayer = meuId;
-        UpdateTurnUI();
+        // Atualiza currentPlayer somente quando receber mensagem "vez:" do servidor
     }
 
     public void SetSelected(Card card)
     {
+        if (meuId == -1)
+        {
+            Debug.Log("Ainda não recebeu ID do servidor.");
+            return;
+        }
+
         if (meuId != currentPlayer)
         {
             Debug.Log("Não é sua vez!");
+            return;
+        }
+
+        if (esperandoJogada)
+        {
+            Debug.Log("Esperando resposta do servidor...");
             return;
         }
 
@@ -238,12 +259,13 @@ public class CardController : MonoBehaviour
             secondCard = card;
             secondCard.Show();
 
+            esperandoJogada = true;
+
             // Envia jogada para o servidor (com os índices das cartas)
             SendMessageToServer($"jogada:{firstCard.index},{secondCard.index}");
 
-            // Limpa para próxima jogada
-            firstCard = null;
-            secondCard = null;
+            // Limpamos seleção só depois que servidor atualizar o estado
+            // Então não limpamos firstCard e secondCard aqui!
         }
     }
 
@@ -274,9 +296,6 @@ public class CardController : MonoBehaviour
 
         player1Image.color = (currentPlayer == 0) ? Color.white : Color.gray;
         player2Image.color = (currentPlayer == 1) ? Color.white : Color.gray;
-
-        // Opcional: tocar música ou efeito para o jogador ativo
-        // MusicManager.Instance.PlayMusicForPlayer(currentPlayer);
     }
 
     public void RestartGame()
@@ -289,24 +308,5 @@ public class CardController : MonoBehaviour
         if (stream != null) stream.Close();
         if (client != null) client.Close();
         if (receiveThread != null && receiveThread.IsAlive) receiveThread.Abort();
-    }
-    public void ReceiveJogada(int cardId, int playerId)
-    {
-        Debug.Log($"Recebido jogada: jogador {playerId} virou carta {cardId}");
-
-        foreach (Card c in cartas)
-        {
-            if (c.cardId == cardId)
-            {
-                if (!c.isSelected && !c.isAchado)
-                {
-                    c.Show();
-                }
-                break;
-            }
-        }
-
-        currentPlayer = playerId;
-        UpdateTurnUI();
     }
 }
