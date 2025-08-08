@@ -22,8 +22,8 @@ public class CardController : MonoBehaviour
     // Referência para o ClienteTCP para enviar mensagens
     public ClienteTCP clienteTCP;
 
-    public int meuId = -1;              // ID do jogador (0 ou 1), começa -1 esperando o servidor setar
-    private int currentPlayer = 0;       // Quem está jogando agora (0 ou 1)
+    public int meuId = -1;              // ID do jogador (1 ou 2), começa -1 esperando o servidor setar
+    private int currentPlayer = -1;     // Quem está jogando agora (1 ou 2)
 
     private List<Card> cartas = new List<Card>();
 
@@ -116,8 +116,8 @@ public class CardController : MonoBehaviour
             int p1 = int.Parse(pontos[0]);
             int p2 = int.Parse(pontos[1]);
 
-            string resultado = p1 > p2 ? "Player 1 venceu!" :
-                               p2 > p1 ? "Player 2 venceu!" :
+            string resultado = p1 > p2 ? "Jogador 1 venceu!" :
+                               p2 > p1 ? "Jogador 2 venceu!" :
                                "Empate!";
 
             victoryText.text = resultado;
@@ -196,7 +196,7 @@ public class CardController : MonoBehaviour
             return;
         }
 
-        if (cardStates[card.index] != 0)
+        if (cardStates[card.index] != 0) // só pode selecionar carta escondida
         {
             // Carta já virada ou achada
             return;
@@ -226,16 +226,16 @@ public class CardController : MonoBehaviour
 
     void UpdateScoresUI()
     {
-        p1ScoreText.text = $"P1 Score: {playerScores[0]}";
-        p2ScoreText.text = $"P2 Score: {playerScores[1]}";
+        p1ScoreText.text = $"Jogador 1: {playerScores[0]}";
+        p2ScoreText.text = $"Jogador 2: {playerScores[1]}";
     }
 
     void UpdateTurnUI()
     {
-        playerTurnText.text = $"Vez de: jogador {currentPlayer + 1}";
+        playerTurnText.text = $"Vez de: Jogador {currentPlayer}";
 
-        player1Image.color = (currentPlayer == 0) ? Color.white : Color.gray;
-        player2Image.color = (currentPlayer == 1) ? Color.white : Color.gray;
+        player1Image.color = (currentPlayer == 1) ? Color.white : Color.gray;
+        player2Image.color = (currentPlayer == 2) ? Color.white : Color.gray;
     }
 
     public void RestartGame()
@@ -243,3 +243,4 @@ public class CardController : MonoBehaviour
         UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
     }
 }
+
