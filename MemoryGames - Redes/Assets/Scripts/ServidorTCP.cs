@@ -27,21 +27,28 @@ public class ServidorTCP : MonoBehaviour
         while (true)
         {
             TcpClient client = server.AcceptTcpClient();
+
             lock (clients)
             {
                 clients.Add(client);
             }
-            Debug.Log("Cliente conectado.");
 
+            int id = clients.Count; // 1, 2, 3...
+            Debug.Log($"Cliente conectado. ID = {id}");
+
+            // Envia ID para o cliente
+            SendMessageToClient(client, $"id:{id}");
+
+            // Cria thread para tratar mensagens deste cliente
             Thread clientThread = new Thread(() => HandleClient(client));
             clientThread.IsBackground = true;
             clientThread.Start();
 
-            // ✅ Inicia o jogo quando 2 jogadores estiverem conectados
+            // Se já tem 2 jogadores, começa o jogo
             if (clients.Count == 2)
             {
                 Debug.Log("2 jogadores conectados. Iniciando o jogo...");
-                BroadcastMessage("INICIAR_JOGO", null); // envia para todos
+                BroadcastMessage("INICIAR_JOGO", null);
             }
         }
     }
@@ -59,9 +66,8 @@ public class ServidorTCP : MonoBehaviour
                 if (bytesRead == 0) break;
 
                 string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                Debug.Log("[Servidor] Mensagem recebida: " + message);
+                Debug.Log("[Servidor] Recebido: " + message);
 
-                // Repassa para os outros clientes
                 BroadcastMessage(message, client);
             }
             catch
@@ -85,7 +91,6 @@ public class ServidorTCP : MonoBehaviour
         {
             foreach (var c in clients)
             {
-                // Se for null (como no INICIAR_JOGO), manda para todos
                 if ((sender == null || c != sender) && c.Connected)
                 {
                     try
@@ -99,10 +104,20 @@ public class ServidorTCP : MonoBehaviour
         }
     }
 
+    void SendMessageToClient(TcpClient client, string message)
+    {
+        try
+        {
+            byte[] data = Encoding.UTF8.GetBytes(message);
+            NetworkStream stream = client.GetStream();
+            stream.Write(data, 0, data.Length);
+        }
+        catch { }
+    }
+
     private void OnApplicationQuit()
     {
         server?.Stop();
         serverThread?.Abort();
     }
 }
-

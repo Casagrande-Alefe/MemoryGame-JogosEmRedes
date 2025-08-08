@@ -7,7 +7,7 @@ using UnityEngine.UI;
 public class ClienteTCP : MonoBehaviour
 {
     [Header("UI de conexão")]
-    public GameObject connectUI;        // UI para conectar (InputField + Button)
+    public GameObject connectUI;        // Painel com inputField e botão
     public InputField ipInputField;     // Campo para digitar o IP
     public Button connectButton;        // Botão conectar
 
@@ -16,20 +16,17 @@ public class ClienteTCP : MonoBehaviour
     private Thread receiveThread;
     private CardController cardController;
 
-    private string serverIP;
-
     void Start()
     {
-        // Pega a referência para o CardController na cena
-        cardController = Object.FindFirstObjectByType<CardController>();
+        // Pega o CardController da cena para mandar as mensagens recebidas pra ele
+        cardController = FindObjectOfType<CardController>();
 
-        // Configura o botão para conectar ao IP informado
         connectButton.onClick.AddListener(() =>
         {
-            serverIP = ipInputField.text.Trim();
-            if (!string.IsNullOrEmpty(serverIP))
+            string ip = ipInputField.text.Trim();
+            if (!string.IsNullOrEmpty(ip))
             {
-                ConnectToServer();
+                ConnectToServer(ip);
             }
             else
             {
@@ -38,7 +35,7 @@ public class ClienteTCP : MonoBehaviour
         });
     }
 
-    void ConnectToServer()
+    void ConnectToServer(string serverIP)
     {
         try
         {
@@ -47,11 +44,11 @@ public class ClienteTCP : MonoBehaviour
 
             Debug.Log("Conectado ao servidor TCP no IP: " + serverIP);
 
-            // Esconde UI de conexão após conectar
+            // Esconde a UI de conexão depois de conectar
             if (connectUI != null)
                 connectUI.SetActive(false);
 
-            // Inicia a thread para receber dados do servidor
+            // Começa a thread que vai ficar escutando o servidor
             receiveThread = new Thread(ReceiveData);
             receiveThread.IsBackground = true;
             receiveThread.Start();
@@ -62,26 +59,6 @@ public class ClienteTCP : MonoBehaviour
         }
     }
 
-    // Envia uma jogada para o servidor
-    public void SendJogada(int cardId, int playerId)
-    {
-        if (client == null || !client.Connected) return;
-
-        string message = $"jogada:{cardId},{playerId}";
-        byte[] data = Encoding.UTF8.GetBytes(message);
-
-        try
-        {
-            stream.Write(data, 0, data.Length);
-            Debug.Log($"[Cliente] Enviou: {message}");
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError("Erro ao enviar jogada: " + e.Message);
-        }
-    }
-
-    // Thread para receber dados do servidor
     void ReceiveData()
     {
         byte[] buffer = new byte[1024];
@@ -91,33 +68,54 @@ public class ClienteTCP : MonoBehaviour
             try
             {
                 int bytesRead = stream.Read(buffer, 0, buffer.Length);
-                if (bytesRead == 0) break; // conexão fechada
+                if (bytesRead == 0) break;
 
                 string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
                 Debug.Log("[Cliente] Recebeu: " + message);
 
-                // Processa mensagem na thread principal para evitar problemas com Unity
-                UnityMainThreadDispatcher.Instance().Enqueue(() => ProcessMessage(message));
+                // Envia para o CardController processar na thread principal (importante para Unity)
+                UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                {
+                    cardController.ProcessServerMessage(message);
+                });
             }
-            catch (System.Exception)
+            catch
             {
                 break;
             }
         }
+
+        // Se desconectar, mostra novamente a UI para tentar reconectar
+        UnityMainThreadDispatcher.Instance().Enqueue(() =>
+        {
+            if (connectUI != null)
+                connectUI.SetActive(true);
+            Debug.LogWarning("Desconectado do servidor.");
+        });
     }
 
-    // Interpreta e trata as mensagens recebidas do servidor
-    void ProcessMessage(string message)
+    public void SendMessageToServer(string message)
     {
-        // Passa a mensagem para o CardController tratar tudo
-        cardController.ProcessServerMessage(message);
+        if (client == null || !client.Connected) return;
+
+        byte[] data = Encoding.UTF8.GetBytes(message);
+
+        try
+        {
+            stream.Write(data, 0, data.Length);
+            Debug.Log($"[Cliente] Enviou: {message}");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError("Erro ao enviar mensagem: " + e.Message);
+        }
     }
 
     private void OnApplicationQuit()
     {
-        // Limpa tudo ao fechar o jogo
         receiveThread?.Abort();
         stream?.Close();
         client?.Close();
     }
 }
+

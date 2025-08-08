@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using TMPro;
@@ -20,11 +19,10 @@ public class CardController : MonoBehaviour
     [SerializeField] private Image player2Image;
     [SerializeField] private Button revengeButton;
 
-    private TcpClient client;
-    private NetworkStream stream;
-    private Thread receiveThread;
+    // Referência para o ClienteTCP para enviar mensagens
+    public ClienteTCP clienteTCP;
 
-    private int meuId = -1;              // ID do jogador (0 ou 1), começa -1 esperando o servidor setar
+    public int meuId = -1;              // ID do jogador (0 ou 1), começa -1 esperando o servidor setar
     private int currentPlayer = 0;       // Quem está jogando agora (0 ou 1)
 
     private List<Card> cartas = new List<Card>();
@@ -51,11 +49,10 @@ public class CardController : MonoBehaviour
 
         CreateCards();
 
-        ConnectToServer();
-
-        // Se quiser testar manualmente, descomenta aqui e seta o id manualmente
-        // meuId = 0; // No seu PC
-        // meuId = 1; // No PC do seu amigo
+        // Tenta achar o ClienteTCP na cena
+        clienteTCP = FindObjectOfType<ClienteTCP>();
+        if (clienteTCP == null)
+            Debug.LogWarning("ClienteTCP não encontrado na cena! A conexão não funcionará.");
     }
 
     void CreateCards()
@@ -79,49 +76,7 @@ public class CardController : MonoBehaviour
             cardStates[i] = 0;
     }
 
-    void ConnectToServer()
-    {
-        try
-        {
-            client = new TcpClient("127.0.0.1", 8080); // Troque para IP do servidor real
-            stream = client.GetStream();
-
-            receiveThread = new Thread(ReceiveData);
-            receiveThread.IsBackground = true;
-            receiveThread.Start();
-
-            Debug.Log("Conectado ao servidor");
-        }
-        catch (Exception e)
-        {
-            Debug.LogError("Erro ao conectar: " + e.Message);
-        }
-    }
-
-    void ReceiveData()
-    {
-        byte[] buffer = new byte[1024];
-
-        while (true)
-        {
-            try
-            {
-                int len = stream.Read(buffer, 0, buffer.Length);
-                if (len == 0) break;
-
-                string msg = Encoding.UTF8.GetString(buffer, 0, len);
-                Debug.Log("[Cliente] Mensagem recebida: " + msg);
-
-                UnityMainThreadDispatcher.Instance().Enqueue(() => ProcessServerMessage(msg));
-            }
-            catch (Exception e)
-            {
-                Debug.LogError("Erro ao receber dados: " + e.Message);
-                break;
-            }
-        }
-    }
-
+    // Chamado pelo ClienteTCP quando chega mensagem do servidor
     public void ProcessServerMessage(string msg)
     {
         if (msg.StartsWith("id:"))
@@ -219,8 +174,6 @@ public class CardController : MonoBehaviour
         cartas[secondIndex].Show();
 
         esperandoJogada = false; // libera input depois da jogada do adversário
-
-        // Atualiza currentPlayer somente quando receber mensagem "vez:" do servidor
     }
 
     public void SetSelected(Card card)
@@ -261,26 +214,13 @@ public class CardController : MonoBehaviour
 
             esperandoJogada = true;
 
-            // Envia jogada para o servidor (com os índices das cartas)
-            SendMessageToServer($"jogada:{firstCard.index},{secondCard.index}");
+            // Envia jogada para o servidor usando ClienteTCP
+            if (clienteTCP != null)
+                clienteTCP.SendMessageToServer($"jogada:{firstCard.index},{secondCard.index}");
+            else
+                Debug.LogWarning("ClienteTCP não está referenciado no CardController!");
 
-            // Limpamos seleção só depois que servidor atualizar o estado
-            // Então não limpamos firstCard e secondCard aqui!
-        }
-    }
-
-    void SendMessageToServer(string message)
-    {
-        if (stream == null) return;
-
-        byte[] data = Encoding.UTF8.GetBytes(message);
-        try
-        {
-            stream.Write(data, 0, data.Length);
-        }
-        catch (Exception e)
-        {
-            Debug.LogError("Erro ao enviar mensagem: " + e.Message);
+            // A limpeza firstCard e secondCard deve ser feita quando receber o update do servidor
         }
     }
 
@@ -301,12 +241,5 @@ public class CardController : MonoBehaviour
     public void RestartGame()
     {
         UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
-    }
-
-    private void OnApplicationQuit()
-    {
-        if (stream != null) stream.Close();
-        if (client != null) client.Close();
-        if (receiveThread != null && receiveThread.IsAlive) receiveThread.Abort();
     }
 }
